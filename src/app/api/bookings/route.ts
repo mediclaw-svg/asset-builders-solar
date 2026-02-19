@@ -1,50 +1,52 @@
 import { NextRequest, NextResponse } from "next/server";
-import { readFile, writeFile, mkdir } from "fs/promises";
-import path from "path";
-import crypto from "crypto";
+import { MongoClient } from "mongodb";
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const BOOKINGS_FILE = path.join(DATA_DIR, "bookings.json");
+const uri = process.env.MONGODB_URI || "";
+const client = new MongoClient(uri);
 
-async function getBookings() {
-  try {
-    const data = await readFile(BOOKINGS_FILE, "utf-8");
-    return JSON.parse(data);
-  } catch {
-    return [];
-  }
-}
-
-async function saveBookings(bookings: unknown[]) {
-  await mkdir(DATA_DIR, { recursive: true });
-  await writeFile(BOOKINGS_FILE, JSON.stringify(bookings, null, 2));
+async function getCollection() {
+  await client.connect();
+  return client.db("asset-builders-solar").collection("bookings");
 }
 
 export async function GET() {
-  const bookings = await getBookings();
-  return NextResponse.json(bookings);
+  try {
+    const collection = await getCollection();
+    const bookings = await collection.find({}).sort({ createdAt: -1 }).toArray();
+    return NextResponse.json(bookings);
+  } catch (error) {
+    console.error("MongoDB error:", error);
+    return NextResponse.json({ error: "Failed to fetch bookings" }, { status: 500 });
+  }
 }
 
 export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { date, time, notes, leadId } = body;
+  try {
+    const body = await request.json();
+    const { date, time, notes, leadId, name, email, phone } = body;
 
-  if (!date || !time) {
-    return NextResponse.json({ error: "Date and time are required" }, { status: 400 });
+    if (!date || !time) {
+      return NextResponse.json({ error: "Date and time are required" }, { status: 400 });
+    }
+
+    const booking = {
+      leadId: leadId || null,
+      name: name || "",
+      email: email || "",
+      phone: phone || "",
+      date,
+      time,
+      notes: notes || "",
+      status: "pending",
+      createdAt: new Date(),
+    };
+
+    const collection = await getCollection();
+    const result = await collection.insertOne(booking);
+
+    return NextResponse.json({ id: result.insertedId, ...booking }, { status: 201 });
+  } catch (error) {
+    console.error("MongoDB error:", error);
+    return NextResponse.json({ error: "Failed to create booking" }, { status: 500 });
   }
-
-  const booking = {
-    id: crypto.randomUUID(),
-    leadId: leadId || null,
-    date,
-    time,
-    notes: notes || "",
-    createdAt: new Date().toISOString(),
-  };
-
-  const bookings = await getBookings();
-  bookings.push(booking);
-  await saveBookings(bookings);
-
-  return NextResponse.json(booking, { status: 201 });
 }
