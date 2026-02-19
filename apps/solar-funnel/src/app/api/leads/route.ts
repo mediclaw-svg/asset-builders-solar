@@ -1,52 +1,46 @@
-import { NextRequest, NextResponse } from "next/server";
-import { readFile, writeFile, mkdir } from "fs/promises";
-import path from "path";
-import crypto from "crypto";
+import { NextResponse } from 'next/server';
+import { MongoClient } from 'mongodb';
 
-const DATA_DIR = path.join(process.cwd(), "data");
-const LEADS_FILE = path.join(DATA_DIR, "leads.json");
+const uri = process.env.MONGODB_URI || 'mongodb+srv://admin:CubeClaw2026@cluster0.tluof.mongodb.net/';
+const dbName = process.env.MONGODB_DB || 'assetbuilders';
 
-async function getLeads() {
-  try {
-    const data = await readFile(LEADS_FILE, "utf-8");
-    return JSON.parse(data);
-  } catch {
-    return [];
+let client: MongoClient;
+
+async function getCollection() {
+  if (!client) {
+    client = new MongoClient(uri);
+    await client.connect();
   }
-}
-
-async function saveLeads(leads: unknown[]) {
-  await mkdir(DATA_DIR, { recursive: true });
-  await writeFile(LEADS_FILE, JSON.stringify(leads, null, 2));
+  return client.db(dbName).collection('leads');
 }
 
 export async function GET() {
-  const leads = await getLeads();
-  return NextResponse.json(leads);
+  try {
+    const collection = await getCollection();
+    const leads = await collection.find({}).sort({ createdAt: -1 }).toArray();
+    return NextResponse.json(leads);
+  } catch (error) {
+    console.error('Error fetching leads:', error);
+    return NextResponse.json({ error: 'Failed to fetch leads' }, { status: 500 });
+  }
 }
 
-export async function POST(request: NextRequest) {
-  const body = await request.json();
-  const { name, email, phone, address, electricBill } = body;
-
-  if (!name || !email || !phone || !address || !electricBill) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+export async function POST(request: Request) {
+  try {
+    const body = await request.json();
+    const lead = {
+      ...body,
+      status: 'new',
+      createdAt: new Date().toISOString(),
+      id: crypto.randomUUID(),
+    };
+    
+    const collection = await getCollection();
+    await collection.insertOne(lead);
+    
+    return NextResponse.json(lead, { status: 201 });
+  } catch (error) {
+    console.error('Error creating lead:', error);
+    return NextResponse.json({ error: 'Failed to create lead' }, { status: 500 });
   }
-
-  const lead = {
-    id: crypto.randomUUID(),
-    name,
-    email,
-    phone,
-    address,
-    electricBill,
-    status: "new",
-    createdAt: new Date().toISOString(),
-  };
-
-  const leads = await getLeads();
-  leads.push(lead);
-  await saveLeads(leads);
-
-  return NextResponse.json(lead, { status: 201 });
 }
