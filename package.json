@@ -1,28 +1,15 @@
 {
-  "name": "asset-builders-solar",
-  "version": "0.1.0",
+  "name": "asset-builders-monorepo",
+  "version": "0.0.0",
   "private": true,
+  "packageManager": "npm@11.9.0",
+  "workspaces": ["apps/*", "packages/*"],
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "@hello-pangea/dnd": "^18.0.1",
-    "mongodb": "^7.1.0",
-    "next": "16.1.6",
-    "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "build": "turbo build",
+    "dev": "turbo dev",
+    "lint": "turbo lint"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "@types/node": "^20",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.6",
-    "tailwindcss": "^4",
-    "typescript": "^5"
+    "turbo": "^2"
   }
 }
